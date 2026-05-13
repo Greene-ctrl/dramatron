@@ -34,7 +34,8 @@ def extract_elements(text: str, begin: str, end: str) -> List[str]:
         start = text.find(begin, start)
         if start == -1:
             return results
-        finish = text.find(end, start)
+        # Look for the ending marker AFTER the beginning marker
+        finish = text.find(end, start + len(begin))
         if finish == -1:
             return results
         results.append(text[start + len(begin):finish].strip())

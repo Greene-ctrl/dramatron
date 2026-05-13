@@ -39,17 +39,25 @@ async def generate_story(request: GenerationRequest):
     else:
         raise HTTPException(status_code=400, detail="Invalid model provider")
 
-    generator = StoryGenerator(storyline=request.logline, prefixes=prefixes, client=client)
+    generator = StoryGenerator(storyline=request.logline, prefixes=prefixes, client=client, verbose=False)
 
-    # Hierarchical generation
-    try:
-        generator.step(0) # Title
-        generator.step(1) # Characters
-        generator.step(2) # Scenes
-        generator.step(3) # Places
-        generator.step(4) # Dialogs
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # Hierarchical generation with explicit step tracking
+    steps = [
+        (0, "Title"),
+        (1, "Characters"),
+        (2, "Scenes"),
+        (3, "Places"),
+        (4, "Dialogs")
+    ]
+
+    for level, name in steps:
+        try:
+            success = generator.step(level)
+            if not success:
+                raise HTTPException(status_code=500, detail=f"Generation failed at step: {name}")
+        except Exception as e:
+            if isinstance(e, HTTPException): raise e
+            raise HTTPException(status_code=500, detail=f"Error generating {name}: {str(e)}")
 
     story = generator.get_story()
 

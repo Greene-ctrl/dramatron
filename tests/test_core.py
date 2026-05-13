@@ -1,7 +1,25 @@
 import unittest
 from dramatron.core.models import Title, Character, Characters, Scene, Scenes, extract_elements, END_MARKER, TITLE_ELEMENT
+from dramatron.core.generator import StoryGenerator
+from dramatron.core.llm import LanguageAPI, LanguageResponse
+from dramatron.core.prompts import MEDEA_PREFIXES
 
-class TestModels(unittest.TestCase):
+class MockLanguageAPI(LanguageAPI):
+    def sample(self, prompt, sample_length=None, seed=None, num_samples=1):
+        # Return different responses based on the prompt content
+        if "Title:" in prompt:
+            return [LanguageResponse(text="Mock Title**END**", text_length=10, prompt=prompt, prompt_length=len(prompt))]
+        if "CHARACTERS_PROMPT" in prompt or "**Character:**" in prompt:
+            return [LanguageResponse(text="**Character:** MockChar **Description:** A mock character.**END**", text_length=20, prompt=prompt, prompt_length=len(prompt))]
+        if "SCENE_PROMPT" in prompt or "**Scenes:**" in prompt:
+            return [LanguageResponse(text="Place: MockPlace\nPlot element: MockPlot\nBeat: MockBeat\n**END**", text_length=20, prompt=prompt, prompt_length=len(prompt))]
+        if "SETTING_PROMPT" in prompt:
+            return [LanguageResponse(text="Description: A mock description.**END**", text_length=20, prompt=prompt, prompt_length=len(prompt))]
+        if "DIALOG_PROMPT" in prompt:
+            return [LanguageResponse(text="Mock Dialog**END**", text_length=10, prompt=prompt, prompt_length=len(prompt))]
+        return [LanguageResponse(text="Mock Response**END**", text_length=13, prompt=prompt, prompt_length=len(prompt))]
+
+class TestCore(unittest.TestCase):
     def test_extract_elements(self):
         text = "Title: My Story**END**"
         elements = extract_elements(text, TITLE_ELEMENT, END_MARKER)
@@ -24,6 +42,28 @@ class TestModels(unittest.TestCase):
         self.assertEqual(len(chars.character_descriptions), 2)
         self.assertEqual(chars.character_descriptions["Rabbit"], "A brave rabbit.")
         self.assertEqual(chars.character_descriptions["Fox"], "A cunning fox.")
+
+    def test_full_generation_pipeline(self):
+        client = MockLanguageAPI(sample_length=511)
+        generator = StoryGenerator(storyline="A mock story.", prefixes=MEDEA_PREFIXES, client=client, verbose=False)
+
+        self.assertTrue(generator.step(0)) # Title
+        self.assertEqual(generator.title, "Mock Title")
+
+        self.assertTrue(generator.step(1)) # Characters
+        self.assertIn("MockChar", generator.characters.character_descriptions)
+
+        self.assertTrue(generator.step(2)) # Scenes
+        self.assertEqual(len(generator.scenes.scenes), 1)
+
+        self.assertTrue(generator.step(3)) # Places
+        self.assertIn("MockPlace.", generator.places)
+
+        self.assertTrue(generator.step(4)) # Dialogs
+        self.assertEqual(len(generator.dialogs), 1)
+
+        story = generator.get_story()
+        self.assertEqual(story.title, "Mock Title")
 
 if __name__ == "__main__":
     unittest.main()

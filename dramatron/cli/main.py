@@ -34,28 +34,22 @@ def main():
     elif args.provider == "groq":
         client = GroqAPI(api_key=api_key, sample_length=511, model=args.model or "mixtral-8x7b-32768")
 
-    generator = StoryGenerator(storyline=logline, prefixes=prefixes, client=client)
+    generator = StoryGenerator(storyline=logline, prefixes=prefixes, client=client, verbose=True)
 
-    print("\n--- Generating Title ---")
-    generator.step(0)
-    print(f"Title: {generator.title}")
+    # Run steps and handle failures
+    steps = [
+        (0, "Title"),
+        (1, "Characters"),
+        (2, "Scenes"),
+        (3, "Places"),
+        (4, "Dialogs")
+    ]
 
-    print("\n--- Generating Characters ---")
-    generator.step(1)
-    for name, desc in generator.characters.character_descriptions.items():
-        print(f"{name}: {desc}")
-
-    print("\n--- Generating Scenes ---")
-    generator.step(2)
-    for i, scene in enumerate(generator.scenes.scenes):
-        print(f"Scene {i+1}: {scene.place} - {scene.plot_element}")
-        print(f"Beat: {scene.beat}")
-
-    print("\n--- Generating Place Descriptions ---")
-    generator.step(3)
-
-    print("\n--- Generating Dialogs ---")
-    generator.step(4)
+    for level, name in steps:
+        success = generator.step(level)
+        if not success:
+            print(f"\nFATAL ERROR: Failed to generate {name}. Aborting.")
+            sys.exit(1)
 
     print("\n--- Final Script ---")
     story = generator.get_story()
